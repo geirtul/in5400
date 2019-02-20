@@ -156,12 +156,12 @@ def forward(conf, X_batch, params, is_training, features=None):
     return Y_proposed, features
 
 
-def cross_entropy_cost(Y_proposed, Y_reference):
+def cross_entropy_cost(Y_proposed, Y_reference, treshold=0.5):
     """Compute the cross entropy cost function.
 
     Args:
-        Y_proposed: numpy array of floats with shape [n_y, m].
-        Y_reference: numpy array of floats with shape [n_y, m]. Collection of one-hot encoded
+        Y_proposed: numpy array of floats with shape [m, n_y].
+        Y_reference: numpy array of floats with shape [m, n_y]. Collection of one-hot encoded
                      true input labels
 
     Returns:
@@ -169,8 +169,18 @@ def cross_entropy_cost(Y_proposed, Y_reference):
         num_correct: Scalar integer
     """
     # TODO: Task 1.3
-    cost = None
-    num_correct = None
+    log_y_prop = np.log(Y_proposed)
+    num_samples = Y_proposed.shape[0]
+
+    cost = -(1/num_samples) * \
+        np.einsum("ij, ij -> ...", Y_reference, log_y_prop)
+
+    tmp = Y_proposed == Y_proposed.max(axis=1, keepdims=True)
+    pred_labels = np.where(tmp)[1]
+
+    correct_labels = np.where(Y_reference == 1)[1]
+
+    num_correct = np.sum(pred_labels == correct_labels)
 
     return cost, num_correct
 
@@ -185,7 +195,7 @@ def activation_derivative(Z, activation_function):
     """
     # TODO: Task 1.4 a)
     if activation_function == 'relu':
-        return None
+        return np.heaviside(Z, 1)
     else:
         print("Error: Unimplemented derivative of activation function: {}",
               activation_function)
