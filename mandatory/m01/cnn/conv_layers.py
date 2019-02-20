@@ -47,26 +47,27 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     width_add = (width_w - 1) // 2
 
     # Convolution loops
-    batch = 0 # tmp until batch is implemented.
-    for filter in range(num_filters):
-        for channel in range(channels_x):
-            tmp_input_layer = np.pad(input_layer[batch, channel, :, :],
-                                      pad_width=pad_size,
-                                      mode='constant',
-                                      constant_values=0)
-            height_counter = 0
-            for height in range(0, height_x, stride):
-                width_counter = 0
-                for width in range(0, width_x, stride):
-                    output_layer[batch, filter, height_counter, width_counter] += np.sum(
-                        weight[filter, channel, :, :]
-                        * tmp_input_layer[height+pad_size-height_add:height+pad_size+height_add+1,
-                                          width+pad_size-width_add:width+pad_size+width_add+1])
-                    width_counter += 1
-                height_counter += 1
+    #batch = 0 # tmp until batch is implemented.
+    for batch in range(batch_size):
+        for filter in range(num_filters):
+            for channel in range(channels_x):
+                tmp_input_layer = np.pad(input_layer[batch, channel, :, :],
+                                          pad_width=pad_size,
+                                          mode='constant',
+                                          constant_values=0)
+                height_counter = 0
+                for height in range(0, height_x, stride):
+                    width_counter = 0
+                    for width in range(0, width_x, stride):
+                        output_layer[batch, filter, height_counter, width_counter] += np.sum(
+                            weight[filter, channel, :, :]
+                            * tmp_input_layer[height+pad_size-height_add:height+pad_size+height_add+1,
+                                              width+pad_size-width_add:width+pad_size+width_add+1])
+                        width_counter += 1
+                    height_counter += 1
 
-        # Add bias
-        output_layer[batch, filter, :, :] += bias[filter]
+            # Add bias
+            output_layer[batch, filter, :, :] += bias[filter]
 
 
 
