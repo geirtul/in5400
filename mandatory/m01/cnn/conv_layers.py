@@ -30,8 +30,6 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     Returns:
         output_layer: The output layer with shape (batch_size, num_filters, height_y, width_y)
     """
-    # TODO: Task 2.1
-
 
     (batch_size, channels_x, height_x, width_x) = input_layer.shape
     (num_filters, channels_w, height_w, width_w) = weight.shape
@@ -47,7 +45,7 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     width_add = (width_w - 1) // 2
 
     # Convolution loops
-    #batch = 0 # tmp until batch is implemented.
+    # TODO: Probably not done w.r.t padding, test with pad > 1
     for batch in range(batch_size):
         for filter in range(num_filters):
             for channel in range(channels_x):
@@ -85,7 +83,7 @@ def conv_layer_backward(output_layer_gradient, input_layer, weight, bias, pad_si
         output_layer_gradient: Gradient of the loss L wrt the next layer y, with shape
             (batch_size, num_filters, height_y, width_y)
         input_layer: Input layer x with shape (batch_size, channels_x, height_x, width_x)
-        weight: Filter kernels with shape (num_filters, channels_x, height_w, width_w)
+        weight: Filter kernels with shape (num_filters, channels_w, height_w, width_w)
         bias: Biases of shape (num_filters)
 
     Returns:
@@ -94,11 +92,28 @@ def conv_layer_backward(output_layer_gradient, input_layer, weight, bias, pad_si
         bias_gradient: Gradient of the loss L with respect to the biases b
     """
     # TODO: Task 2.2
-    input_layer_gradient, weight_gradient, bias_gradient = None, None, None
+    input_layer_gradient = None
+    weight_gradient = np.zeros((weight.shape))
+    bias_gradient = np.zeros(num_filters) # one gradient for each 'channel' in output_layer
 
     batch_size, channels_y, height_y, width_y = output_layer_gradient.shape
     batch_size, channels_x, height_x, width_x = input_layer.shape
     num_filters, channels_w, height_w, width_w = weight.shape
+
+    # Calculate gradients
+
+    for batch in range(batch_size):
+        for filter in range(num_filters):
+            # Bias gradient
+            bias_gradient[filter] += np.sum(output_layer_gradient[batch, filter, :, :])
+
+            for channel in range(channels_x):
+                for height in range(height_x):
+                    for width in range(width_x):
+                        # Needs more nesten for-looperinos
+                        weight_gradient[filter, channel, height, width] += np.sum(output_layer_gradient[batch, filter, height, width]
+                            * input_layer[batch, channel, ]
+
 
     assert num_filters == channels_y, (
         "The number of filters must be the same as the number of output layer channels")
