@@ -36,11 +36,15 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     (batch_size, channels_x, height_x, width_x) = input_layer.shape
     (num_filters, channels_w, height_w, width_w) = weight.shape
 
-    output_layer = np.zeros((batch_size, num_filters, height_x, width_x)) # Should have shape (batch_size, num_filters, height_y, width_y)
+    # Calculate dimensions for output_layer
+    height_y = 1 + (height_x + 2*pad_size - height_w) // stride
+    width_y = 1 + (width_x + 2*pad_size - width_w) // stride
+    output_layer = np.zeros((batch_size, num_filters, height_y, width_y)) # Should have shape (batch_size, num_filters, height_y, width_y)
+    print(output_layer.shape)
 
     # How far above and below / left and right of current pixel will filter reach?
-    height_add = (height_w - 1)//2
-    width_add = (width_w - 1)//2
+    height_add = (height_w - 1) // 2
+    width_add = (width_w - 1) // 2
 
     # Convolution loops
     batch = 0 # tmp until batch is implemented.
@@ -50,12 +54,17 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
                                       pad_width=pad_size,
                                       mode='constant',
                                       constant_values=0)
-            for height in range(height_x):
-                for width in range(width_x):
-                    output_layer[batch, filter, height, width] += np.sum(
+            height_counter = 0
+            for height in range(0, height_x, stride):
+                width_counter = 0
+                for width in range(0, width_x, stride):
+                    output_layer[batch, filter, height_counter, width_counter] += np.sum(
                         weight[filter, channel, :, :]
                         * tmp_input_layer[height+pad_size-height_add:height+pad_size+height_add+1,
                                           width+pad_size-width_add:width+pad_size+width_add+1])
+                    width_counter += 1
+                height_counter += 1
+
         # Add bias
         output_layer[batch, filter, :, :] += bias[filter]
 
