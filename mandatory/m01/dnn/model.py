@@ -44,7 +44,18 @@ def initialization(conf):
                 the network.
     """
     # TODO: Task 1.1
-    params = None
+    layer_dimensions = conf["layer_dimensions"]
+    params = {}
+
+    for i in range(len(layer_dimensions) - 1):
+        layer_shape = (layer_dimensions[i], layer_dimensions[i + 1])
+        layer_var = 2/layer_shape[0]
+
+        weights = np.random.normal(0, layer_var, layer_shape)
+        bias = np.zeros((layer_shape[1]))
+
+        params["W_{}".format(i+1)] = weights
+        params["b_{}".format(i+1)] = bias
 
     return params
 
@@ -141,7 +152,8 @@ def activation_derivative(Z, activation_function):
     if activation_function == 'relu':
         return None
     else:
-        print("Error: Unimplemented derivative of activation function: {}", activation_function)
+        print("Error: Unimplemented derivative of activation function: {}",
+              activation_function)
         return None
 
 
