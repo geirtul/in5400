@@ -70,7 +70,14 @@ def activation(Z, activation_function):
     """
     # TODO: Task 1.2 a)
     if activation_function == 'relu':
-        return None
+        """
+        in place modification seems to be the fastest by one OOM compared 
+        to vanilla np.maximum, x * (x > 0 ) 
+        ref:
+        https://stackoverflow.com/questions/32109319/how-to-implement-the-relu-function-in-numpy
+        """
+        np.maximum(0, Z, out=Z)
+        return Z
     else:
         print("Error: Unimplemented activation function: {}", activation_function)
         return None
