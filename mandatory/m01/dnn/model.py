@@ -71,13 +71,15 @@ def activation(Z, activation_function):
     # TODO: Task 1.2 a)
     if activation_function == 'relu':
         """
-        in place modification seems to be the fastest by one OOM compared 
-        to vanilla np.maximum, x * (x > 0 ) 
+        in place modification seems to be the fastest by one OOM compared
+        to vanilla np.maximum, x * (x > 0 )
         ref:
         https://stackoverflow.com/questions/32109319/how-to-implement-the-relu-function-in-numpy
+
+        but is impractical without a rework of the intended architecture
         """
-        np.maximum(0, Z, out=Z)
-        return Z
+        a = Z * (Z > 0)
+        return a
     else:
         print("Error: Unimplemented activation function: {}", activation_function)
         return None
@@ -99,13 +101,13 @@ def softmax(Z):
     # TODO: Task 1.2 b)
 
     # again, in-place modification for speed
-    np.exp(Z, out=Z)
-    normalization = np.sum(Z, axis=0)
+    x = np.exp(Z)
+    normalization = np.sum(x, axis=1, keepdims=True)
 
-    return Z/normalization
+    return x/normalization
 
 
-def forward(conf, X_batch, params, is_training):
+def forward(conf, X_batch, params, is_training, features=None):
     """One forward step.
 
     Args:
@@ -127,8 +129,29 @@ def forward(conf, X_batch, params, is_training):
                We cache them in order to use them when computing gradients in the backpropagation.
     """
     # TODO: Task 1.2 c)
-    Y_proposed = None
-    features = None
+
+    features = {}
+    num_iter = len(conf["layer_dimensions"]) - 2
+    x = X_batch.T
+
+    for i in range(num_iter):
+        b = params["b_{}".format(i + 1)]
+        w = params["W_{}".format(i + 1)]
+
+        z_tmp = np.matmul(x, w) + np.squeeze(b)
+        a_tmp = activation(z_tmp, conf["activation_function"])
+        features["Z_{}".format(i + 1)] = z_tmp.T
+        features["A_{}".format(i + 1)] = a_tmp.T
+
+        x = a_tmp
+
+    b = params["b_{}".format(num_iter + 1)]
+    w = params["W_{}".format(num_iter + 1)]
+
+    z_tmp = np.matmul(x, w) + np.squeeze(b)
+    features["Z_{}".format(num_iter + 1)] = z_tmp.T
+
+    Y_proposed = softmax(z_tmp).T
 
     return Y_proposed, features
 
