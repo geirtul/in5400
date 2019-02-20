@@ -97,7 +97,12 @@ def softmax(Z):
         numpy array of floats with shape [n, m]
     """
     # TODO: Task 1.2 b)
-    return None
+
+    # again, in-place modification for speed
+    np.exp(Z, out=Z)
+    normalization = np.sum(Z, axis=0)
+
+    return Z/normalization
 
 
 def forward(conf, X_batch, params, is_training):
