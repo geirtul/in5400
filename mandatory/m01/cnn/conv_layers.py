@@ -23,7 +23,7 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     spans all C_i channels and has height H_w and width W_w.
 
     Args:
-        input_alyer: The input layer with shape (batch_size, channels_x, height_x, width_x)
+        input_layer: The input layer with shape (batch_size, channels_x, height_x, width_x)
         weight: Filter kernels with shape (num_filters, channels_x, height_w, width_w)
         bias: Biases of shape (num_filters)
 
@@ -31,13 +31,38 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
         output_layer: The output layer with shape (batch_size, num_filters, height_y, width_y)
     """
     # TODO: Task 2.1
-    output_layer = None # Should have shape (batch_size, num_filters, height_y, width_y)
+
 
     (batch_size, channels_x, height_x, width_x) = input_layer.shape
     (num_filters, channels_w, height_w, width_w) = weight.shape
 
+    output_layer = np.zeros((batch_size, num_filters, height_x, width_x)) # Should have shape (batch_size, num_filters, height_y, width_y)
+
+    # How far above and below / left and right of current pixel will filter reach?
+    height_add = (height_w - 1)//2
+    width_add = (width_w - 1)//2
+
+    # Convolution loops
+    batch = 0 # tmp until batch is implemented.
+    for filter in range(num_filters):
+        for channel in range(channels_x):
+            tmp_input_layer = np.pad(input_layer[batch, channel, :, :],
+                                      pad_width=pad_size,
+                                      mode='constant',
+                                      constant_values=0)
+            for height in range(height_x):
+                for width in range(width_x):
+                    output_layer[batch, filter, height, width] += np.sum(
+                        weight[filter, channel, :, :]
+                        * tmp_input_layer[height+pad_size-height_add:height+pad_size+height_add+1,
+                                          width+pad_size-width_add:width+pad_size+width_add+1])
+        # Add bias
+        output_layer[batch, filter, :, :] += bias[filter]
+
+
+
     assert channels_w == channels_x, (
-        "The number of filter channels be the same as the number of input layer channels")
+        "Arr! The number of filter channels be the same as the number of input layer channels")
 
     return output_layer
 
