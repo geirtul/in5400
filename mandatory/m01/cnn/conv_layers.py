@@ -101,18 +101,27 @@ def conv_layer_backward(output_layer_gradient, input_layer, weight, bias, pad_si
     num_filters, channels_w, height_w, width_w = weight.shape
 
     # Calculate gradients
-
+    #   Bias gradient
     for batch in range(batch_size):
         for filter in range(num_filters):
-            # Bias gradient
             bias_gradient[filter] += np.sum(output_layer_gradient[batch, filter, :, :])
+    
+    #   Weight gradient
+    for batch in range(batch_size):
+        for filter in range(num_filters):
+            for k in range(channels_x):
+                for r in range(height_x):
+                    for s in range(width_x):
+                        tmp_gradient_sum = 0
+                        for j in range(channels_x):
+                            for p in range(height_x):
+                                for q in range(width_x):
+                                    tmp_gradient_sum += output_layer_gradient[batch, j, p, q] * input_layer[batch, k, p+r, q+s]
 
-            for channel in range(channels_x):
-                for height in range(height_x):
-                    for width in range(width_x):
-                        # Needs more nesten for-looperinos
-                        weight_gradient[filter, channel, height, width] += np.sum(output_layer_gradient[batch, filter, height, width]
-                            * input_layer[batch, channel, ]
+                        weight_gradient[batch, filter, k, r] += tmp_gradient_sum
+
+    # Input gradient
+
 
 
     assert num_filters == channels_y, (
