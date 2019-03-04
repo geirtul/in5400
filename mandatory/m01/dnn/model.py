@@ -220,7 +220,46 @@ def backward(conf, Y_proposed, Y_reference, params, features):
                 - the gradient of the biases grad_b^[l] for l in [1, L].
     """
     # TODO: Task 1.4 b)
-    grad_params = None
+    n_layers = len(conf["layer_dimensions"]) - 1
+    batch_size = Y_proposed.shape[1]
+    activation_function = conf["activation_function"]
+
+    grad_params = {}
+
+    # aM = features["A_{}".format(n_layers)] # aM is Y_proposed
+    a_prev = features["A_{}".format(n_layers - 1)]
+
+    dEdY = Y_proposed - Y_reference
+    dEdX_cur = dEdY * 1  # activation_derivative(zM, activation_function)
+    dXdW_cur = a_prev
+
+    dEdW_cur = np.einsum("ki, ji -> jk", dEdX_cur, dXdW_cur)
+    dEdB_cur = np.expand_dims(np.einsum("ij -> i", dEdX_cur) * 1, axis=1)
+
+    grad_params["grad_W_{}".format(n_layers)] = dEdW_cur/batch_size
+    grad_params["grad_b_{}".format(n_layers)] = dEdB_cur/batch_size
+
+    layer_iter = [i for i in range(n_layers-1)]
+    layer_iter.reverse()
+
+    for la in layer_iter:
+        la += 1
+
+        dXlpdAl = params["W_{}".format(la+1)]
+        dAldXl = activation_derivative(
+            features["Z_{}".format(la)], activation_function)
+        dXldWl = features["A_{}".format(la-1)]
+
+        dEdAl = np.einsum("ki, jk -> ji", dEdX_cur, dXlpdAl)
+        dEdXl = dEdAl * dAldXl
+        dEdWl = np.einsum("ji, hi -> hj", dEdXl, dXldWl)
+        dEdBl = np.expand_dims(np.einsum("ij -> i", dEdXl), axis=1)
+
+        grad_params["grad_W_{}".format(la)] = dEdWl/batch_size
+        grad_params["grad_b_{}".format(la)] = dEdBl/batch_size
+
+        dEdX_cur = dEdXl
+
     return grad_params
 
 
