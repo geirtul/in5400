@@ -59,6 +59,12 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
 
     # Initialisation
     params = model.initialization(conf)
+    n_trainable = 0
+
+    for key in params:
+        n_trainable += params[key].size
+
+    print("Trainable parameters:", n_trainable)
 
     # For displaying training progress
     train_steps = []
@@ -75,6 +81,8 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
     batch_end_index = conf['batch_size']
     print("Number of training examples in one epoch: ", num_examples_in_epoch)
     print("Start training iteration")
+    prev_grad_params = None
+
     while True:
         start_time = time.time()
         batch_indices = get_batch_indices(
@@ -88,7 +96,11 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
         cost_value, num_correct = model.cross_entropy_cost(Y_proposal, Y_batch)
         grad_params = model.backward(
             conf, Y_proposal, Y_batch, params, features)
-        params = model.gradient_descent_update(conf, params, grad_params)
+        params = model.gradient_descent_update(
+            conf, params, grad_params, prev_grad_params)
+
+        if conf["momentum"]:
+            prev_grad_params = grad_params
 
         num_correct_since_last_check += num_correct
 

@@ -33,10 +33,23 @@ import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
 
+def rgb2gray(rgb):
+
+    n_samples = rgb.shape[1]
+    rgb = rgb.reshape((32, 32, 3, n_samples))
+    r, g, b = rgb[:, :, 0, :], rgb[:, :, 1, :], rgb[:, :, 2, :]
+    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+
+    return gray.reshape((-1, n_samples))
+
+
 def config(
         dataset,
         hidden_dimensions,
         batch_size,
+        momentum,
+        rgb=False,
+        max_steps=10000
 ):
     """
     Return a dict of configuration settings used in the program
@@ -50,6 +63,10 @@ def config(
 
     conf = {}
 
+    # Process entire or part of image
+    conf["rgb"] = rgb
+    # use momentum update in training
+    conf["momentum"] = momentum
     # Determine what dataset to run on. 'mnist', 'cifar10' and 'svhn' are currently supported
     conf['dataset'] = dataset
     # Relevant datasets will be put in the location data_root_dir/dataset.
@@ -70,7 +87,7 @@ def config(
     conf['activation_function'] = 'relu'
     # The number of steps to run before termination of training. One step is one forward->backward
     # pass of a mini-batch
-    conf['max_steps'] = 2000
+    conf['max_steps'] = max_steps
     # The batch size used in training.
     conf['batch_size'] = batch_size
     # The step size used by the optimization routine.
@@ -134,20 +151,39 @@ def get_data(conf):
 
     data_dir = os.path.join(conf['data_root_dir'], conf['dataset'])
     if conf['dataset'] == 'cifar10':
-        conf['input_dimension'] = 32*32*3
+
+        if conf["rgb"] == True:
+            conf['input_dimension'] = 32*32*3
+        else:
+            conf['input_dimension'] = 32*32*1
         conf['output_dimension'] = 10
         X_train, Y_train, X_devel, Y_devel, X_test, Y_test = import_data.load_cifar10(
             data_dir, conf['devel_size'])
+
+        if not conf["rgb"]:
+            X_train = rgb2gray(X_train)
+            X_devel = rgb2gray(X_devel)
+            X_test = rgb2gray(X_test)
+
     elif conf['dataset'] == 'mnist':
         conf['input_dimension'] = 28*28*1
         conf['output_dimension'] = 10
         X_train, Y_train, X_devel, Y_devel, X_test, Y_test = import_data.load_mnist(
             data_dir, conf['devel_size'])
     elif conf['dataset'] == 'svhn':
-        conf['input_dimension'] = 32*32*3
+        if conf["rgb"]:
+            conf['input_dimension'] = 32*32*3
+        else:
+            conf['input_dimension'] = 32*32*1
         conf['output_dimension'] = 10
         X_train, Y_train, X_devel, Y_devel, X_test, Y_test = import_data.load_svhn(
             data_dir, conf['devel_size'])
+
+        if not conf["rgb"]:
+
+            X_train = rgb2gray(X_train)
+            X_devel = rgb2gray(X_devel)
+            X_test = rgb2gray(X_test)
 
     conf['layer_dimensions'] = ([conf['input_dimension']] +
                                 conf['hidden_dimensions'] +
@@ -176,10 +212,11 @@ def get_data(conf):
     return X_train, Y_train, X_devel, Y_devel, X_test, Y_test
 
 
-def main(dataset, hidden_dimensions, batch_size):
+def main(dataset, hidden_dimensions, batch_size, momentum, rgb, max_steps):
     """Run the program according to specified configurations."""
 
-    conf = config(dataset, hidden_dimensions, batch_size)
+    conf = config(dataset, hidden_dimensions, batch_size,
+                  momentum, max_steps=max_steps, rgb=rgb)
 
     X_train, Y_train, X_devel, Y_devel, X_test, Y_test = get_data(conf)
 
@@ -200,6 +237,8 @@ def main(dataset, hidden_dimensions, batch_size):
     num_correct, num_evaluated = run.evaluate(conf, params, X_test, Y_test)
     print("CCR = {0:>5} / {1:>5} = {2:>6.4f}".format(num_correct, num_evaluated,
                                                      num_correct/num_evaluated))
+
+    return params, train_progress, devel_progress
 
 
 if __name__ == "__main__":

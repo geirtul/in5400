@@ -268,7 +268,7 @@ def backward(conf, Y_proposed, Y_reference, params, features):
     return grad_params
 
 
-def gradient_descent_update(conf, params, grad_params):
+def gradient_descent_update(conf, params, grad_params, prev_grad_params=None):
     """Update the parameters in params according to the gradient descent update routine.
 
     Args:
@@ -286,5 +286,8 @@ def gradient_descent_update(conf, params, grad_params):
     for key, value in params.items():
         dEdValue = grad_params["grad_"+key]
         updated_params[key] = value - eta*dEdValue
+
+        if not prev_grad_params is None:
+            updated_params[key] += - eta * 1.2 * prev_grad_params["grad_"+key]
 
     return updated_params
