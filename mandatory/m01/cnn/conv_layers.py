@@ -38,7 +38,6 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     height_y = 1 + (height_x + 2*pad_size - height_w) // stride
     width_y = 1 + (width_x + 2*pad_size - width_w) // stride
     output_layer = np.zeros((batch_size, num_filters, height_y, width_y)) # Should have shape (batch_size, num_filters, height_y, width_y)
-    print(output_layer.shape)
 
     # How far above and below / left and right of current pixel will filter reach?
     height_add = (height_w - 1) // 2
@@ -46,27 +45,23 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
 
     # Convolution loops
     # TODO: Probably not done w.r.t padding, test with pad > 1
-    for batch in range(batch_size):
-        for filter in range(num_filters):
-            for channel in range(channels_x):
-                tmp_input_layer = np.pad(input_layer[batch, channel, :, :],
+    for i in range(batch_size):
+        for j in range(num_filters):
+            for k in range(channels_x):
+                tmp_input_layer = np.pad(input_layer[i, k, :, :],
                                           pad_width=pad_size,
                                           mode='constant',
                                           constant_values=0)
-                height_counter = 0
-                for height in range(0, height_x, stride):
-                    width_counter = 0
-                    for width in range(0, width_x, stride):
-                        output_layer[batch, filter, height_counter, width_counter] += np.sum(
-                            weight[filter, channel, :, :]
-                            * tmp_input_layer[height+pad_size-height_add:height+pad_size+height_add+1,
-                                              width+pad_size-width_add:width+pad_size+width_add+1])
-                        width_counter += 1
-                    height_counter += 1
+                for h in range(0, height_y):
+                    h_s = h*stride
+                    for w in range(0, width_y):
+                        w_s = w*stride
+                        output_layer[i, j, h, w] += np.sum(weight[j, k, :, :]
+                            * tmp_input_layer[h_s+pad_size-height_add:h_s+pad_size+height_add+1,
+                                              w_s+pad_size-width_add:w_s+pad_size+width_add+1])
 
             # Add bias
-            output_layer[batch, filter, :, :] += bias[filter]
-
+            output_layer[i, j, :, :] += bias[j]
 
 
     assert channels_w == channels_x, (
@@ -92,35 +87,47 @@ def conv_layer_backward(output_layer_gradient, input_layer, weight, bias, pad_si
         bias_gradient: Gradient of the loss L with respect to the biases b
     """
     # TODO: Task 2.2
-    input_layer_gradient = None
-    weight_gradient = np.zeros((weight.shape))
-    bias_gradient = np.zeros(num_filters) # one gradient for each 'channel' in output_layer
 
     batch_size, channels_y, height_y, width_y = output_layer_gradient.shape
     batch_size, channels_x, height_x, width_x = input_layer.shape
     num_filters, channels_w, height_w, width_w = weight.shape
 
+    input_layer_gradient = np.zeros((input_layer.shape))
+    weight_gradient = np.zeros((weight.shape))
+    bias_gradient = np.zeros(num_filters) # one gradient for each 'channel' in output_layer
+
+    height_add = (height_w - 1) // 2
+    width_add = (width_w - 1) // 2
+
     # Calculate gradients
-    #   Bias gradient
     for batch in range(batch_size):
-        for filter in range(num_filters):
-            bias_gradient[filter] += np.sum(output_layer_gradient[batch, filter, :, :])
-    
-    #   Weight gradient
-    for batch in range(batch_size):
-        for filter in range(num_filters):
-            for k in range(channels_x):
-                for r in range(height_x):
-                    for s in range(width_x):
-                        tmp_gradient_sum = 0
-                        for j in range(channels_x):
-                            for p in range(height_x):
-                                for q in range(width_x):
-                                    tmp_gradient_sum += output_layer_gradient[batch, j, p, q] * input_layer[batch, k, p+r, q+s]
+        for j in range(num_filters):
+            # Bias gradient
+            bias_gradient[j] += np.sum(output_layer_gradient[batch, j, :, :])
+            for k in range(channels_w):
+                # Padded layers for gradient calculations
+                padded_input_layer = np.pad(input_layer[batch, k, :, :],
+                                          pad_width=pad_size,
+                                          mode='constant',
+                                          constant_values=0)
+                padded_output_layer_gradient = np.pad(output_layer_gradient[batch, j, :, :],
+                                          pad_width=pad_size,
+                                          mode='constant',
+                                          constant_values=0)
+                for p in range(height_y):
+                    for q in range(width_y):
+                        for r in range(height_w):
+                            for s in range(width_w):
+                                # Weight gradient
+                                weight_gradient[j, k, r, s] += \
+                                    output_layer_gradient[batch, j, p, q] \
+                                    * padded_input_layer[p+r, q+s]
 
-                        weight_gradient[batch, filter, k, r] += tmp_gradient_sum
+                        # Input gradient
+                        input_layer_gradient[batch, k, p, q] += np.sum(weight[j, k, -1::-1, -1::-1]
+                            * padded_output_layer_gradient[p+pad_size-height_add:p+pad_size+height_add+1,
+                                                         q+pad_size-width_add:q+pad_size+width_add+1])
 
-    # Input gradient
 
 
 
