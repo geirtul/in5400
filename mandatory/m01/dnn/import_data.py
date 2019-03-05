@@ -81,9 +81,11 @@ def load_mnist(data_dir="data/mnist", devel_size=10000):
         return np.asarray(data, dtype=np.uint8)
 
     print("Loading MNIST data from ", data_dir)
-    X_train = _load_data('train-images-idx3-ubyte.gz', data_dir, 16).reshape((-1, 784)).T
+    X_train = _load_data('train-images-idx3-ubyte.gz',
+                         data_dir, 16).reshape((-1, 784)).T
     Y_train = _load_data('train-labels-idx1-ubyte.gz', data_dir, 8)
-    X_test = _load_data('t10k-images-idx3-ubyte.gz', data_dir, 16).reshape((-1, 784)).T
+    X_test = _load_data('t10k-images-idx3-ubyte.gz',
+                        data_dir, 16).reshape((-1, 784)).T
     Y_test = _load_data('t10k-labels-idx1-ubyte.gz', data_dir, 8)
 
     # Scale data to [0.0, 1.0]
@@ -151,11 +153,12 @@ def load_cifar10(data_dir="data/cifar10", devel_size=10000):
     else:
         print("Extraction of compression format is not implemented")
 
-    #Unpickle file and fill in data
+    # Unpickle file and fill in data
     X_train = None
     Y_train = []
     for ind in range(1, 6):
-        filepath = os.path.join(data_dir, "cifar-10-batches-py/data_batch_{}".format(ind))
+        filepath = os.path.join(
+            data_dir, "cifar-10-batches-py/data_batch_{}".format(ind))
         with open(filepath, 'rb') as fil:
             data_dict = pickle.load(fil, encoding='latin-1')
         if ind == 1:
@@ -183,6 +186,7 @@ def load_cifar10(data_dir="data/cifar10", devel_size=10000):
     Y_train, Y_devel = Y_train[:-devel_size], Y_train[-devel_size:]
 
     return X_train, Y_train, X_devel, Y_devel, X_test, Y_test
+
 
 def load_svhn(data_dir, devel_size=10000):
     """Load the Street View House Numbers (SVHN) dataset

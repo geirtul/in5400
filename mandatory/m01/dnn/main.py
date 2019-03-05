@@ -32,20 +32,33 @@ import run
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
-def config():
-    """Return a dict of configuration settings used in the program"""
+
+def config(
+        dataset,
+        hidden_dimensions,
+        batch_size,
+):
+    """
+    Return a dict of configuration settings used in the program
+
+    Input: 
+        dataset - a str of either mnist, cifar10 or svhn 
+        hidden_dimension - a list of ints denoting width and depth of layers
+
+
+    """
 
     conf = {}
 
-    # Determine what dataset to run on. 'mnist', 'cifar10' and 'svhn' are currently supported.
-    conf['dataset'] = 'mnist'
+    # Determine what dataset to run on. 'mnist', 'cifar10' and 'svhn' are currently supported
+    conf['dataset'] = dataset
     # Relevant datasets will be put in the location data_root_dir/dataset.
     conf['data_root_dir'] = "/tmp/data"
 
     # Number of input nodes. This is determined by the dataset in runtime.
     conf['input_dimension'] = None
     # Number of hidden layers, with the number of nodes in each layer.
-    conf['hidden_dimensions'] = [128, 32]
+    conf['hidden_dimensions'] = hidden_dimensions
     # Number of classes. This is determined by the dataset in runtime.
     conf['output_dimension'] = None
     # This will be determined in runtime when input_dimension and output_dimension is set.
@@ -59,7 +72,7 @@ def config():
     # pass of a mini-batch
     conf['max_steps'] = 2000
     # The batch size used in training.
-    conf['batch_size'] = 128
+    conf['batch_size'] = batch_size
     # The step size used by the optimization routine.
     conf['learning_rate'] = 1.0e-2
 
@@ -73,18 +86,22 @@ def config():
 
     return conf
 
+
 def plot_progress(train_progress, devel_progress, out_filename=None):
     """Plot a chart of the training progress"""
 
     fig, ax1 = plt.subplots(figsize=(8, 6), dpi=100)
-    ax1.plot(train_progress['steps'], train_progress['ccr'], 'b', label='Training set ccr')
-    ax1.plot(devel_progress['steps'], devel_progress['ccr'], 'r', label='Development set ccr')
+    ax1.plot(train_progress['steps'],
+             train_progress['ccr'], 'b', label='Training set ccr')
+    ax1.plot(devel_progress['steps'], devel_progress['ccr'],
+             'r', label='Development set ccr')
     ax1.set_xlabel('Steps')
     ax1.set_ylabel('Correct classification rate')
     ax1.legend(loc='lower left', bbox_to_anchor=(0.6, 0.52), framealpha=1.0)
 
     ax2 = ax1.twinx()
-    ax2.plot(train_progress['steps'], train_progress['cost'], 'g', label='Training set cost')
+    ax2.plot(train_progress['steps'], train_progress['cost'],
+             'g', label='Training set cost')
     ax2.set_ylabel('Cross entropy cost')
     gl2 = ax2.get_ygridlines()
     for gl in gl2:
@@ -99,6 +116,7 @@ def plot_progress(train_progress, devel_progress, out_filename=None):
         plt.savefig(out_filename)
 
     plt.show()
+
 
 def get_data(conf):
     """Return data to be used in this session.
@@ -139,30 +157,34 @@ def get_data(conf):
         print("Train dataset:")
         print("  shape = {}, data type = {}, min val = {}, max val = {}".format(X_train.shape,
                                                                                 X_train.dtype,
-                                                                                np.min(X_train),
+                                                                                np.min(
+                                                                                    X_train),
                                                                                 np.max(X_train)))
         print("Development dataset:")
         print("  shape = {}, data type = {}, min val = {}, max val = {}".format(X_devel.shape,
                                                                                 X_devel.dtype,
-                                                                                np.min(X_devel),
+                                                                                np.min(
+                                                                                    X_devel),
                                                                                 np.max(X_devel)))
         print("Test dataset:")
         print("  shape = {}, data type = {}, min val = {}, max val = {}".format(X_test.shape,
                                                                                 X_test.dtype,
-                                                                                np.min(X_test),
+                                                                                np.min(
+                                                                                    X_test),
                                                                                 np.max(X_test)))
 
     return X_train, Y_train, X_devel, Y_devel, X_test, Y_test
 
 
-def main():
+def main(dataset, hidden_dimensions, batch_size):
     """Run the program according to specified configurations."""
 
-    conf = config()
+    conf = config(dataset, hidden_dimensions, batch_size)
 
     X_train, Y_train, X_devel, Y_devel, X_test, Y_test = get_data(conf)
 
-    params, train_progress, devel_progress = run.train(conf, X_train, Y_train, X_devel, Y_devel)
+    params, train_progress, devel_progress = run.train(
+        conf, X_train, Y_train, X_devel, Y_devel)
 
     plot_progress(train_progress, devel_progress)
 
@@ -178,6 +200,7 @@ def main():
     num_correct, num_evaluated = run.evaluate(conf, params, X_test, Y_test)
     print("CCR = {0:>5} / {1:>5} = {2:>6.4f}".format(num_correct, num_evaluated,
                                                      num_correct/num_evaluated))
+
 
 if __name__ == "__main__":
     main()

@@ -49,10 +49,10 @@ def initialization(conf):
 
     for i in range(len(layer_dimensions) - 1):
         layer_shape = (layer_dimensions[i], layer_dimensions[i + 1])
-        layer_var = 2/layer_shape[0]
+        layer_var = 2/layer_dimensions[i]
 
-        weights = np.random.normal(0, layer_var, layer_shape)
-        bias = np.zeros((layer_shape[1]))
+        weights = np.random.normal(0, np.sqrt(layer_var), layer_shape)
+        bias = np.zeros((layer_shape[1], 1))
 
         params["W_{}".format(i+1)] = weights
         params["b_{}".format(i+1)] = bias
@@ -85,7 +85,7 @@ def activation(Z, activation_function):
         return None
 
 
-def softmax(Z):
+def softmax(Z, axis=0):
     """Compute and return the softmax of the input.
 
     To improve numerical stability, we do the following
@@ -102,7 +102,7 @@ def softmax(Z):
 
     # again, in-place modification for speed
     x = np.exp(Z)
-    normalization = np.sum(x, axis=1, keepdims=True)
+    normalization = np.sum(x, axis=axis, keepdims=True)
 
     return x/normalization
 
@@ -132,27 +132,28 @@ def forward(conf, X_batch, params, is_training, features=None):
 
     features = {}
     num_iter = len(conf["layer_dimensions"]) - 2
-    x = X_batch.T
+    x = X_batch
+
+    features["A_0"] = X_batch
 
     for i in range(num_iter):
         b = params["b_{}".format(i + 1)]
         w = params["W_{}".format(i + 1)]
 
-        z_tmp = np.matmul(x, w) + np.squeeze(b)
+        z_tmp = np.einsum("ib, io -> ob", x, w) + b
         a_tmp = activation(z_tmp, conf["activation_function"])
-        features["Z_{}".format(i + 1)] = z_tmp.T
-        features["A_{}".format(i + 1)] = a_tmp.T
+        features["Z_{}".format(i + 1)] = z_tmp
+        features["A_{}".format(i + 1)] = a_tmp
 
         x = a_tmp
 
     b = params["b_{}".format(num_iter + 1)]
     w = params["W_{}".format(num_iter + 1)]
 
-    z_tmp = np.matmul(x, w) + np.squeeze(b)
-    features["Z_{}".format(num_iter + 1)] = z_tmp.T
+    z_tmp = np.einsum("ib, io -> ob", x, w) + b
+    features["Z_{}".format(num_iter + 1)] = z_tmp
 
-    Y_proposed = softmax(z_tmp).T
-
+    Y_proposed = softmax(z_tmp)
     return Y_proposed, features
 
 
@@ -170,16 +171,17 @@ def cross_entropy_cost(Y_proposed, Y_reference, treshold=0.5):
     """
     # TODO: Task 1.3
     log_y_prop = np.log(Y_proposed)
-    num_samples = Y_proposed.shape[0]
+    num_samples = Y_proposed.shape[1]
 
     cost = -(1/num_samples) * \
         np.einsum("ij, ij -> ...", Y_reference, log_y_prop)
 
-    tmp = Y_proposed == Y_proposed.max(axis=1, keepdims=True)
-    pred_labels = np.where(tmp)[1]
+    tmp = Y_proposed == Y_proposed.max(axis=0, keepdims=True)
+    tmp = tmp.astype(np.int8)
 
-    correct_labels = np.where(Y_reference == 1)[1]
+    pred_labels = np.nonzero(tmp.T)[1]
 
+    correct_labels = np.nonzero(Y_reference.T)[1]
     num_correct = np.sum(pred_labels == correct_labels)
 
     return cost, num_correct
@@ -230,11 +232,11 @@ def backward(conf, Y_proposed, Y_reference, params, features):
     a_prev = features["A_{}".format(n_layers - 1)]
 
     dEdY = Y_proposed - Y_reference
-    dEdX_cur = dEdY * 1  # activation_derivative(zM, activation_function)
+    dEdX_cur = dEdY  # activation_derivative(zM, activation_function)
     dXdW_cur = a_prev
 
     dEdW_cur = np.einsum("ki, ji -> jk", dEdX_cur, dXdW_cur)
-    dEdB_cur = np.expand_dims(np.einsum("ij -> i", dEdX_cur) * 1, axis=1)
+    dEdB_cur = np.expand_dims(np.einsum("ij -> i", dEdX_cur), axis=1)
 
     grad_params["grad_W_{}".format(n_layers)] = dEdW_cur/batch_size
     grad_params["grad_b_{}".format(n_layers)] = dEdB_cur/batch_size
@@ -250,11 +252,14 @@ def backward(conf, Y_proposed, Y_reference, params, features):
             features["Z_{}".format(la)], activation_function)
         dXldWl = features["A_{}".format(la-1)]
 
+        #print(dEdX_cur.shape, dXlpdAl.shape)
         dEdAl = np.einsum("ki, jk -> ji", dEdX_cur, dXlpdAl)
         dEdXl = dEdAl * dAldXl
+        #print(dXldWl.shape, dEdXl.shape)
         dEdWl = np.einsum("ji, hi -> hj", dEdXl, dXldWl)
         dEdBl = np.expand_dims(np.einsum("ij -> i", dEdXl), axis=1)
 
+        #print(dEdWl.shape, params["W_"+str(la)].shape)
         grad_params["grad_W_{}".format(la)] = dEdWl/batch_size
         grad_params["grad_b_{}".format(la)] = dEdBl/batch_size
 
@@ -275,5 +280,11 @@ def gradient_descent_update(conf, params, grad_params):
         params: Updated parameter dictionary.
     """
     # TODO: Task 1.5
-    updated_params = None
+    eta = conf["learning_rate"]
+    updated_params = {}
+
+    for key, value in params.items():
+        dEdValue = grad_params["grad_"+key]
+        updated_params[key] = value - eta*dEdValue
+
     return updated_params
