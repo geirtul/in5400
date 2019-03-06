@@ -18,6 +18,7 @@ import numpy as np
 
 import model
 
+
 def get_batch_indices(indices, start_index, end_index):
     """Return the indices of the examples that are to form a batch.
 
@@ -33,6 +34,7 @@ def get_batch_indices(indices, start_index, end_index):
     """
     n = len(indices)
     return np.hstack((indices[start_index:min(n, end_index)], indices[0:max(end_index-n, 0)]))
+
 
 def train(conf, X_train, Y_train, X_devel, Y_devel):
     """Run training
@@ -57,6 +59,12 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
 
     # Initialisation
     params = model.initialization(conf)
+    n_trainable = 0
+
+    for key in params:
+        n_trainable += params[key].size
+
+    print("Trainable parameters:", n_trainable)
 
     # For displaying training progress
     train_steps = []
@@ -73,16 +81,26 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
     batch_end_index = conf['batch_size']
     print("Number of training examples in one epoch: ", num_examples_in_epoch)
     print("Start training iteration")
+    prev_grad_params = None
+
     while True:
         start_time = time.time()
-        batch_indices = get_batch_indices(example_indices, batch_start_index, batch_end_index)
+        batch_indices = get_batch_indices(
+            example_indices, batch_start_index, batch_end_index)
         X_batch = X_train[:, batch_indices]
-        Y_batch = model.one_hot(Y_train[batch_indices], conf['output_dimension'])
+        Y_batch = model.one_hot(
+            Y_train[batch_indices], conf['output_dimension'])
 
-        Y_proposal, features = model.forward(conf, X_batch, params, is_training=True)
+        Y_proposal, features = model.forward(
+            conf, X_batch, params, is_training=True)
         cost_value, num_correct = model.cross_entropy_cost(Y_proposal, Y_batch)
-        grad_params = model.backward(conf, Y_proposal, Y_batch, params, features)
-        params = model.gradient_descent_update(conf, params, grad_params)
+        grad_params = model.backward(
+            conf, Y_proposal, Y_batch, params, features)
+        params = model.gradient_descent_update(
+            conf, params, grad_params, prev_grad_params)
+
+        if conf["momentum"]:
+            prev_grad_params = grad_params
 
         num_correct_since_last_check += num_correct
 
@@ -100,11 +118,11 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
             print("ERROR: nan encountered")
             break
 
-
         if step % conf['train_progress'] == 0:
             elapsed_time = time.time() - start_time
             sec_per_batch = elapsed_time / conf['train_progress']
-            examples_per_sec = conf['batch_size']*conf['train_progress'] / elapsed_time
+            examples_per_sec = conf['batch_size'] * \
+                conf['train_progress'] / elapsed_time
             ccr = num_correct / conf['batch_size']
             running_ccr = (num_correct_since_last_check /
                            conf['train_progress'] / conf['batch_size'])
@@ -120,7 +138,8 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
                                                                        sec_per_batch))
 
         if step % conf['devel_progress'] == 0:
-            num_correct, num_evaluated = evaluate(conf, params, X_devel, Y_devel)
+            num_correct, num_evaluated = evaluate(
+                conf, params, X_devel, Y_devel)
             devel_steps.append(step)
             devel_ccr.append(num_correct / num_evaluated)
             if conf['verbose']:
@@ -131,7 +150,8 @@ def train(conf, X_train, Y_train, X_devel, Y_devel):
             print("Terminating training after {} steps".format(step))
             break
 
-    train_progress = {'steps': train_steps, 'ccr': train_ccr, 'cost': train_cost}
+    train_progress = {'steps': train_steps,
+                      'ccr': train_ccr, 'cost': train_cost}
     devel_progress = {'steps': devel_steps, 'ccr': devel_ccr}
 
     return params, train_progress, devel_progress
@@ -157,7 +177,8 @@ def evaluate(conf, params, X_data, Y_data):
     end_ind = conf['batch_size']
     while True:
         X_batch = X_data[:, start_ind: end_ind]
-        Y_batch = model.one_hot(Y_data[start_ind: end_ind], conf['output_dimension'])
+        Y_batch = model.one_hot(
+            Y_data[start_ind: end_ind], conf['output_dimension'])
         Y_proposal, _ = model.forward(conf, X_batch, params, is_training=False)
         _, num_correct = model.cross_entropy_cost(Y_proposal, Y_batch)
         num_correct_total += num_correct
