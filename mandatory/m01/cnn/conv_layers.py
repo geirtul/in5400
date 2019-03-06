@@ -41,12 +41,7 @@ def conv_layer_forward(input_layer, weight, bias, pad_size=1, stride=1):
     # Output layer should have shape (batch_size, num_filters, height_y, width_y)
     output_layer = np.zeros((batch_size, num_filters, height_y, width_y))
 
-    # K_height and K_width of filter, assuming size is 2*K+1
-    K_h = (height_w - 1) // 2
-    K_w = (width_w - 1) // 2
-
     # Convolution loops
-    # TODO: Probably not done w.r.t padding, test with pad > 1
     for i in range(batch_size):
         for j in range(num_filters):
             for k in range(channels_x):
@@ -95,9 +90,6 @@ def conv_layer_backward(output_layer_gradient, input_layer, weight, bias, pad_si
     input_layer_gradient = np.zeros((input_layer.shape))
     weight_gradient = np.zeros((weight.shape))
     bias_gradient = np.zeros(num_filters) # one gradient for each 'channel' in output_layer
-
-    K_h = (height_w - 1) // 2
-    K_w = (width_w - 1) // 2
 
     # Calculate gradients
     for batch in range(batch_size):
