@@ -44,7 +44,18 @@ def initialization(conf):
                 the network.
     """
     # TODO: Task 1.1
-    params = None
+    layer_dimensions = conf["layer_dimensions"]
+    params = {}
+
+    for i in range(len(layer_dimensions) - 1):
+        layer_shape = (layer_dimensions[i], layer_dimensions[i + 1])
+        layer_var = 2/layer_dimensions[i]
+
+        weights = np.random.normal(0, np.sqrt(layer_var), layer_shape)
+        bias = np.zeros((layer_shape[1], 1))
+
+        params["W_{}".format(i+1)] = weights
+        params["b_{}".format(i+1)] = bias
 
     return params
 
@@ -59,13 +70,22 @@ def activation(Z, activation_function):
     """
     # TODO: Task 1.2 a)
     if activation_function == 'relu':
-        return None
+        """
+        in place modification seems to be the fastest by one OOM compared
+        to vanilla np.maximum, x * (x > 0 )
+        ref:
+        https://stackoverflow.com/questions/32109319/how-to-implement-the-relu-function-in-numpy
+
+        but is impractical without a rework of the intended architecture
+        """
+        a = Z * (Z > 0)
+        return a
     else:
         print("Error: Unimplemented activation function: {}", activation_function)
         return None
 
 
-def softmax(Z):
+def softmax(Z, axis=0):
     """Compute and return the softmax of the input.
 
     To improve numerical stability, we do the following
@@ -79,10 +99,15 @@ def softmax(Z):
         numpy array of floats with shape [n, m]
     """
     # TODO: Task 1.2 b)
-    return None
+
+    # again, in-place modification for speed
+    x = np.exp(Z)
+    normalization = np.sum(x, axis=axis, keepdims=True)
+
+    return x/normalization
 
 
-def forward(conf, X_batch, params, is_training):
+def forward(conf, X_batch, params, is_training, features=None):
     """One forward step.
 
     Args:
@@ -104,18 +129,40 @@ def forward(conf, X_batch, params, is_training):
                We cache them in order to use them when computing gradients in the backpropagation.
     """
     # TODO: Task 1.2 c)
-    Y_proposed = None
-    features = None
 
+    features = {}
+    num_iter = len(conf["layer_dimensions"]) - 2
+    x = X_batch
+
+    features["A_0"] = X_batch
+
+    for i in range(num_iter):
+        b = params["b_{}".format(i + 1)]
+        w = params["W_{}".format(i + 1)]
+
+        z_tmp = np.einsum("ib, io -> ob", x, w) + b
+        a_tmp = activation(z_tmp, conf["activation_function"])
+        features["Z_{}".format(i + 1)] = z_tmp
+        features["A_{}".format(i + 1)] = a_tmp
+
+        x = a_tmp
+
+    b = params["b_{}".format(num_iter + 1)]
+    w = params["W_{}".format(num_iter + 1)]
+
+    z_tmp = np.einsum("ib, io -> ob", x, w) + b
+    features["Z_{}".format(num_iter + 1)] = z_tmp
+
+    Y_proposed = softmax(z_tmp)
     return Y_proposed, features
 
 
-def cross_entropy_cost(Y_proposed, Y_reference):
+def cross_entropy_cost(Y_proposed, Y_reference, treshold=0.5):
     """Compute the cross entropy cost function.
 
     Args:
-        Y_proposed: numpy array of floats with shape [n_y, m].
-        Y_reference: numpy array of floats with shape [n_y, m]. Collection of one-hot encoded
+        Y_proposed: numpy array of floats with shape [m, n_y].
+        Y_reference: numpy array of floats with shape [m, n_y]. Collection of one-hot encoded
                      true input labels
 
     Returns:
@@ -123,8 +170,19 @@ def cross_entropy_cost(Y_proposed, Y_reference):
         num_correct: Scalar integer
     """
     # TODO: Task 1.3
-    cost = None
-    num_correct = None
+    log_y_prop = np.log(Y_proposed)
+    num_samples = Y_proposed.shape[1]
+
+    cost = -(1/num_samples) * \
+        np.einsum("ij, ij -> ...", Y_reference, log_y_prop)
+
+    tmp = Y_proposed == Y_proposed.max(axis=0, keepdims=True)
+    tmp = tmp.astype(np.int8)
+
+    pred_labels = np.nonzero(tmp.T)[1]
+
+    correct_labels = np.nonzero(Y_reference.T)[1]
+    num_correct = np.sum(pred_labels == correct_labels)
 
     return cost, num_correct
 
@@ -139,9 +197,10 @@ def activation_derivative(Z, activation_function):
     """
     # TODO: Task 1.4 a)
     if activation_function == 'relu':
-        return None
+        return np.heaviside(Z, 1)
     else:
-        print("Error: Unimplemented derivative of activation function: {}", activation_function)
+        print("Error: Unimplemented derivative of activation function: {}",
+              activation_function)
         return None
 
 
@@ -163,11 +222,53 @@ def backward(conf, Y_proposed, Y_reference, params, features):
                 - the gradient of the biases grad_b^[l] for l in [1, L].
     """
     # TODO: Task 1.4 b)
-    grad_params = None
+    n_layers = len(conf["layer_dimensions"]) - 1
+    batch_size = Y_proposed.shape[1]
+    activation_function = conf["activation_function"]
+
+    grad_params = {}
+
+    # aM = features["A_{}".format(n_layers)] # aM is Y_proposed
+    a_prev = features["A_{}".format(n_layers - 1)]
+
+    dEdY = Y_proposed - Y_reference
+    dEdX_cur = dEdY  # activation_derivative(zM, activation_function)
+    dXdW_cur = a_prev
+
+    dEdW_cur = np.einsum("ki, ji -> jk", dEdX_cur, dXdW_cur)
+    dEdB_cur = np.expand_dims(np.einsum("ij -> i", dEdX_cur), axis=1)
+
+    grad_params["grad_W_{}".format(n_layers)] = dEdW_cur/batch_size
+    grad_params["grad_b_{}".format(n_layers)] = dEdB_cur/batch_size
+
+    layer_iter = [i for i in range(n_layers-1)]
+    layer_iter.reverse()
+
+    for la in layer_iter:
+        la += 1
+
+        dXlpdAl = params["W_{}".format(la+1)]
+        dAldXl = activation_derivative(
+            features["Z_{}".format(la)], activation_function)
+        dXldWl = features["A_{}".format(la-1)]
+
+        #print(dEdX_cur.shape, dXlpdAl.shape)
+        dEdAl = np.einsum("ki, jk -> ji", dEdX_cur, dXlpdAl)
+        dEdXl = dEdAl * dAldXl
+        #print(dXldWl.shape, dEdXl.shape)
+        dEdWl = np.einsum("ji, hi -> hj", dEdXl, dXldWl)
+        dEdBl = np.expand_dims(np.einsum("ij -> i", dEdXl), axis=1)
+
+        #print(dEdWl.shape, params["W_"+str(la)].shape)
+        grad_params["grad_W_{}".format(la)] = dEdWl/batch_size
+        grad_params["grad_b_{}".format(la)] = dEdBl/batch_size
+
+        dEdX_cur = dEdXl
+
     return grad_params
 
 
-def gradient_descent_update(conf, params, grad_params):
+def gradient_descent_update(conf, params, grad_params, prev_grad_params=None):
     """Update the parameters in params according to the gradient descent update routine.
 
     Args:
@@ -179,5 +280,14 @@ def gradient_descent_update(conf, params, grad_params):
         params: Updated parameter dictionary.
     """
     # TODO: Task 1.5
-    updated_params = None
+    eta = conf["learning_rate"]
+    updated_params = {}
+
+    for key, value in params.items():
+        dEdValue = grad_params["grad_"+key]
+        updated_params[key] = value - eta*dEdValue
+
+        if not prev_grad_params is None:
+            updated_params[key] += - eta * 1.2 * prev_grad_params["grad_"+key]
+
     return updated_params
