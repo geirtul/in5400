@@ -82,10 +82,24 @@ class RNN(nn.Module):
         self.cell_type         = cell_type
 
         # ToDo
-        # Your task is to create a list (self.cells) of type "nn.ModuleList" and populated it with cells of type "self.cell_type".
-        self.cells = None
+        # Your task is to create a list (self.cells) of type "nn.ModuleList" and populate 
+        # it with cells of type "self.cell_type".
         
-        return
+        cells = []
+        if self.cell_type == 'GRU':
+            for i in range(num_rnn_layers):
+                if i == 0:
+                    cells.append(self.GRUCell(self.hidden_state_size, self.input_size))
+                else:
+                    cells.append(self.GRUCell(self.hidden_state_size, self.hidden_state_size)
+        else:
+            for i in range(num_rnn_layers):
+                if i == 0:
+                    cells.append(self.RNNCell(self.hidden_state_size, self.input_size))
+                else:
+                    cells.append(self.RNNCell(self.hidden_state_size, self.hidden_state_size)
+            
+        self.cells = nn.ModuleList(cells)
 
 
     def forward(self, xTokens, initial_hidden_state, outputLayer, Embedding, is_train=True):
@@ -110,12 +124,17 @@ class RNN(nn.Module):
         # ToDo
         # While iterate through the (stacked) rnn, it may be easier to use lists instead of indexing the tensors.
         # You can use "list(torch.unbind())" and "torch.stack()" to convert from pytorch tensor to lists and back again.
-
         # get input embedding vectors
-
         # Use for loops to run over "seqLen" and "self.num_rnn_layers" to calculate logits
-
         # Produce outputs
+                                 
+        input_words = Embedding(xTokens)
+        
+        for i in range(seqLen):
+
+                                 
+                                 
+                                 
         logits        = None
         current_state = None
         return logits, current_state
@@ -148,18 +167,23 @@ class GRUCell(nn.Module):
         Tips:
             Variance scaling:  Var[W] = 1/n
         """
-        self.hidden_state_sizes = hidden_state_size
+        self.hidden_state_size = hidden_state_size
 
         # TODO:
-        self.weight_u = None
-        self.bias_u   = None
+        w_u = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        self.weight_u = nn.Parameter(nn.init.normal_(w_u, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
+        b_u = torch.empty(1, self.hidden_state_size)
+        self.bias_u = nn.Parameter(nn.init.constant_(b_u, 0.0))
 
-        self.weight_r = None
-        self.bias_r   = None
+        w_r = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        self.weight_r = nn.Parameter(nn.init.normal_(w_r, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
+        b_r = torch.empty(1, self.hidden_state_size)
+        self.bias_r = nn.Parameter(nn.init.constant_(b_u, 0.0))
 
-        self.weight = None
-        self.bias   = None
-        return
+        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
+        b = torch.empty(1, self.hidden_state_size)
+        self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
 
     def forward(self, x, state_old):
         """
@@ -172,8 +196,15 @@ class GRUCell(nn.Module):
 
         """
         # TODO:
-
-        state_new = None
+        tmp_conc = torch.cat((x, state_old), 1)
+        
+        update_gate = torch.sigmoid(torch.matmul(tmp_conc, self.weight_u) + self.bias_u)
+        update_reset = torch.sigmoid(torch.matmul(tmp_conc, self.weight_r) + self.bias_r)
+        
+        tmp_conc_candidate = torch.cat((x, update_reset*state_old), 1)
+        candidate_cell = torch.tanh(torch.matmul(tmp_conc_candidate, self.weight) + self.bias)
+        
+        state_new = update_gate*state_old + (1 - update_gate)*candidate_cell
         return state_new
 
 ######################################################################################################################
@@ -197,9 +228,11 @@ class RNNCell(nn.Module):
         self.hidden_state_size = hidden_state_size
 
         # TODO:
-        self.weight = None
-        self.bias   = None
-        return
+        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
+        
+        b = torch.empty(1, self.hidden_state_size)
+        self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
 
 
     def forward(self, x, state_old):
@@ -213,7 +246,8 @@ class RNNCell(nn.Module):
 
         """
         # TODO:
-        state_new = None
+        tmp = torch.cat((x, state_old), 1)
+        state_new = torch.tanh(torch.matmul(tmp, self.weight) + self.bias)
         return state_new
 
 ######################################################################################################################
@@ -224,7 +258,7 @@ def loss_fn(logits, yTokens, yWeights):
     Args:
         logits          : shape[batch_size, truncated_backprop_length, vocabulary_size]
         yTokens (labels): Shape[batch_size, truncated_backprop_length]
-        yWeights        : Shape[batch_size, truncated_backprop_length]. Add contribution to the total loss only from words exsisting 
+        yWeights        : Shape[batch_size, truncated_backprop_length]. Add contribution to the total loss only from words existing 
                           (the sequence lengths may not add up to #*truncated_backprop_length)
 
     Returns:
@@ -234,11 +268,16 @@ def loss_fn(logits, yTokens, yWeights):
     Tips:
         F.cross_entropy
     """
-    eps = 0.0000000001 #used to not divide on zero
+    eps = 0.0000000001 #used to not divide by zero
     
     # TODO:
-    sumLoss  = None
-    meanLoss = None
+    softmax = F.log_softmax(logits, 2)
+    loss = nn.NLLLoss(reduction='none')
+    output = loss(torch.transpose(softmax, 1, 2), yTokens)
+    output_weighted = output*yWeights
+    
+    sumLoss  = torch.sum(output_weighted)
+    meanLoss = sumLoss/torch.sum(yWeights)
 
     return sumLoss, meanLoss
 
