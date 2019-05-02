@@ -91,13 +91,13 @@ class RNN(nn.Module):
                 if i == 0:
                     cells.append(self.GRUCell(self.hidden_state_size, self.input_size))
                 else:
-                    cells.append(self.GRUCell(self.hidden_state_size, self.hidden_state_size)
+                    cells.append(self.GRUCell(self.hidden_state_size, self.hidden_state_size))
         else:
             for i in range(num_rnn_layers):
                 if i == 0:
                     cells.append(self.RNNCell(self.hidden_state_size, self.input_size))
                 else:
-                    cells.append(self.RNNCell(self.hidden_state_size, self.hidden_state_size)
+                    cells.append(self.RNNCell(self.hidden_state_size, self.hidden_state_size))
             
         self.cells = nn.ModuleList(cells)
 
@@ -127,16 +127,53 @@ class RNN(nn.Module):
         # get input embedding vectors
         # Use for loops to run over "seqLen" and "self.num_rnn_layers" to calculate logits
         # Produce outputs
-                                 
-        input_words = Embedding(xTokens)
         
-        for i in range(seqLen):
+                                 
+        input_tokens = Embedding(xTokens)
+        
+        # xTokens.shape[0] = batch_size, 
+        # xTokens.shape[1] = truncated_backprop_length, 
+        # outLayer.out_features = vocabulary size
+        logits = torch.zeros(xTokens.shape[0], xTokens.shape[1], outLayer.out_features)
+                
+        # keep track of all states
+        states = torch.zeros(seqLen, current_state.shape[0], current_state.shape[1], current_state.shape[2])
+        
+        if is_train:
+            current_state = initial_hidden_state
+            for i in range(seqLen):
+                cell_input = input_tokens[:, i, :]
+                for j in range(self.num_rnn_layers):
+                    current_cell = self.cells[j]
+                    states[i, j, :, :] = current_cell.forward(cell_input, current_state[j, :, :])
 
-                                 
-                                 
-                                 
-        logits        = None
-        current_state = None
+                    # Update cell input so that the next cell receives the new state.
+                    cell_input = states[i, j, :, :]
+
+                # Calculate logit with final state for the current word
+                logits[:, i, :] = outputLayer(current_state[-1])
+                current_state = states[i, :, :, :]
+        else:
+            current_state = initial_hidden_state
+            cell_input = input_words[:, 0, :]
+            for i in range(seqLen):
+                for j in range(self.num_rnn_layers):
+                    current_cell = self.cells[j]
+                    states[i, j, :, :] = current_cell.forward(cell_input, current_state[j, :, :])
+
+                    # Update cell input so that the next cell receives the new state.
+                    cell_input = states[i, j, :, :]
+
+                # Calculate logit with final state for the current word
+                logits[:, i, :] = outputLayer(current_state[-1])
+                
+                # set cell_input to embedded version of the best candidate word
+                current_output = F.softmax(logits[:, i, :], dim=1)
+                best_word = torch.argmax(current_output, dim=1)
+                cell_input = Embedded(best_word)
+                current_state = states[i, :, :, :]
+
+
         return logits, current_state
 
 ########################################################################################################################
@@ -184,6 +221,8 @@ class GRUCell(nn.Module):
         self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
         b = torch.empty(1, self.hidden_state_size)
         self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
+        
+        return
 
     def forward(self, x, state_old):
         """
