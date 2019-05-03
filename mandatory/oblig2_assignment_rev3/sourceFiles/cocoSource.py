@@ -89,15 +89,15 @@ class RNN(nn.Module):
         if self.cell_type == 'GRU':
             for i in range(num_rnn_layers):
                 if i == 0:
-                    cells.append(self.GRUCell(self.hidden_state_size, self.input_size))
+                    cells.append(GRUCell(self.hidden_state_size, self.input_size))
                 else:
-                    cells.append(self.GRUCell(self.hidden_state_size, self.hidden_state_size))
+                    cells.append(GRUCell(self.hidden_state_size, self.hidden_state_size))
         else:
             for i in range(num_rnn_layers):
                 if i == 0:
-                    cells.append(self.RNNCell(self.hidden_state_size, self.input_size))
+                    cells.append(RNNCell(self.hidden_state_size, self.input_size))
                 else:
-                    cells.append(self.RNNCell(self.hidden_state_size, self.hidden_state_size))
+                    cells.append(RNNCell(self.hidden_state_size, self.hidden_state_size))
             
         self.cells = nn.ModuleList(cells)
 
@@ -134,9 +134,10 @@ class RNN(nn.Module):
         # xTokens.shape[0] = batch_size, 
         # xTokens.shape[1] = truncated_backprop_length, 
         # outLayer.out_features = vocabulary size
-        logits = torch.zeros(xTokens.shape[0], xTokens.shape[1], outLayer.out_features)
+        logits = torch.zeros(xTokens.shape[0], seqLen, outputLayer.out_features)
                 
         # keep track of all states
+        current_state = initial_hidden_state
         states = torch.zeros(seqLen, current_state.shape[0], current_state.shape[1], current_state.shape[2])
         
         if is_train:
@@ -155,7 +156,7 @@ class RNN(nn.Module):
                 current_state = states[i, :, :, :]
         else:
             current_state = initial_hidden_state
-            cell_input = input_words[:, 0, :]
+            cell_input = input_tokens[:, 0, :]
             for i in range(seqLen):
                 for j in range(self.num_rnn_layers):
                     current_cell = self.cells[j]
@@ -170,7 +171,7 @@ class RNN(nn.Module):
                 # set cell_input to embedded version of the best candidate word
                 current_output = F.softmax(logits[:, i, :], dim=1)
                 best_word = torch.argmax(current_output, dim=1)
-                cell_input = Embedded(best_word)
+                cell_input = Embedding(best_word)
                 current_state = states[i, :, :, :]
 
 
