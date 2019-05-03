@@ -147,15 +147,16 @@ class RNN(nn.Module):
         
         batch_size = initial_hidden_state.shape[1]
 
-        input_tokens = Embedding(xTokens)
-        
-        logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
-                
-        # keep track of all states because Autograd doesn't play nice with in-place modification
-        all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
-        all_states[0, :, :, :] = initial_hidden_state
+
         
         if is_train:
+            input_tokens = Embedding(xTokens)
+
+            logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
+
+            # keep track of all states because Autograd doesn't play nice with in-place modification
+            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
+            all_states[0, :, :, :] = initial_hidden_state
             for i in range(seqLen):
                 cell_input = input_tokens[:, i, :]
                 for j in range(self.num_rnn_layers):
@@ -170,6 +171,13 @@ class RNN(nn.Module):
                 # Force keeping gradient, otherwise backprop produces bad results.
                 logits[:, i, :] = outputLayer(all_states[i+1, -1, :, :]).clone().detach().requires_grad_(True)
         else:
+            input_tokens = Embedding(xTokens)
+
+            logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
+
+            # keep track of all states because Autograd doesn't play nice with in-place modification
+            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
+            all_states[0, :, :, :] = initial_hidden_state
             cell_input = input_tokens[:, 0, :]
             for i in range(seqLen):
                 for j in range(self.num_rnn_layers):
