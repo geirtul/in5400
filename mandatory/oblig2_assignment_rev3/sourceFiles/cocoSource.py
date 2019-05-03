@@ -155,8 +155,8 @@ class RNN(nn.Module):
             logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
 
             # keep track of all states because Autograd doesn't play nice with in-place modification
-            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
-            all_states[0, :, :, :] = initial_hidden_state
+            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size, requires_grad=True)
+            all_states[0, :, :, :] = initial_hidden_state.clone().detach()
             for i in range(seqLen):
                 cell_input = input_tokens[:, i, :]
                 for j in range(self.num_rnn_layers):
@@ -176,8 +176,8 @@ class RNN(nn.Module):
             logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
 
             # keep track of all states because Autograd doesn't play nice with in-place modification
-            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
-            all_states[0, :, :, :] = initial_hidden_state
+            all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size, requires_grad=True)
+            all_states[0, :, :, :] = initial_hidden_state.clone().detach()
             cell_input = input_tokens[:, 0, :]
             for i in range(seqLen):
                 for j in range(self.num_rnn_layers):
@@ -230,20 +230,23 @@ class GRUCell(nn.Module):
         self.hidden_state_size = hidden_state_size
 
         # TODO:
-        w_u = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
-        self.weight_u = nn.Parameter(nn.init.normal_(w_u, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b_u = torch.empty(1, self.hidden_state_size, requires_grad=True)
-        self.bias_u = nn.Parameter(nn.init.constant_(b_u, 0.0))
+        w_u = torch.zeros(self.hidden_state_size + input_size, self.hidden_state_size, requires_grad=True)
+        self.weight_u = nn.Parameter(
+            torch.normal(w_u, 1/np.sqrt(self.hidden_state_size + input_size)).clone().detach().requires_grad_(True))
+            
+        self.bias_u = nn.Parameter(torch.zeros(1, self.hidden_state_size, requires_grad=True))
 
-        w_r = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
-        self.weight_r = nn.Parameter(nn.init.normal_(w_r, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b_r = torch.empty(1, self.hidden_state_size, requires_grad=True)
-        self.bias_r = nn.Parameter(nn.init.constant_(b_u, 0.0))
+        w_r = torch.zeros(self.hidden_state_size + input_size, self.hidden_state_size, requires_grad=True)
+        self.weight_r = nn.Parameter(
+            torch.normal(w_r, 1/np.sqrt(self.hidden_state_size + input_size)).clone().detach().requires_grad_(True))
+            
+        self.bias_r = nn.Parameter(torch.zeros(1, self.hidden_state_size, requires_grad=True))
 
-        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
-        self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b = torch.empty(1, self.hidden_state_size, requires_grad=True)
-        self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
+        w = torch.zeros(self.hidden_state_size + input_size, self.hidden_state_size, requires_grad=True)
+        self.weight = nn.Parameter(
+            torch.normal(w, 1/np.sqrt(self.hidden_state_size + input_size)).clone().detach().requires_grad_(True))
+            
+        self.bias = nn.Parameter(torch.zeros(1, self.hidden_state_size, requires_grad=True))
         
         return
 
@@ -290,11 +293,11 @@ class RNNCell(nn.Module):
         self.hidden_state_size = hidden_state_size
 
         # TODO:
-        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
-        self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
+        w = torch.zeros(self.hidden_state_size + input_size, self.hidden_state_size, requires_grad=True)
+        self.weight = nn.Parameter(
+            torch.normal(w, 1/np.sqrt(self.hidden_state_size + input_size)).clone().detach().requires_grad_(True))
         
-        b = torch.empty(1, self.hidden_state_size, requires_grad=True)
-        self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
+        self.bias = nn.Parameter(torch.zeros(1, self.hidden_state_size, requires_grad=True))
 
 
     def forward(self, x, state_old):
