@@ -24,18 +24,18 @@ class imageCaptionModel(nn.Module):
         self.vocabulary_size    = config['vocabulary_size']
         self.embedding_size     = config['embedding_size']
         self.VggFc7Size         = config['VggFc7Size']
-        self.hidden_state_sizes = config['hidden_state_sizes']
+        self.hidden_state_size = config['hidden_state_sizes']
         self.num_rnn_layers     = config['num_rnn_layers']
         self.cell_type          = config['cellType']
 
         # ToDo
-        self.Embedding = None
+        self.Embedding = nn.Embedding(self.vocabulary_size, self.embedding_size)
 
-        self.inputLayer = None
+        self.inputLayer = nn.Linear(self.VggFc7Size, self.hidden_state_size)
 
-        self.rnn = None
+        self.rnn = RNN(self.embedding_size, self.hidden_state_size, self.num_rnn_layers, self.cell_type)
 
-        self.outputLayer = None
+        self.outputLayer = nn.Linear(self.hidden_state_size, self.vocabulary_size)
         return
 
     def forward(self, vgg_fc7_features, xTokens, is_train, current_hidden_state=None):
@@ -54,11 +54,28 @@ class imageCaptionModel(nn.Module):
         # ToDO
         # Get "initial_hidden_state" shape[num_rnn_layers, batch_size, hidden_state_sizes].
         # Remember that each rnn cell needs its own initial state.
-
         # use self.rnn to calculate "logits" and "current_hidden_state"
         
-        logits = None
-        current_hidden_state_out = None
+        # Get batch size from vgg_fc7_features
+        batch_size = vgg_fc7_features.shape[0]
+        
+        # Feed vgg_fc7_features through inputLayer, to be passed to all rnn cells.
+        input_prepped = self.inputLayer(vgg_fc7_features)
+        
+        # Define initial_hidden_state of current is None
+        if current_hidden_state is None:
+            initial_hidden_state = torch.zeros(self.num_rnn_layers, batch_size, self.hidden_state_size)
+            # Prepare initial state for each RNN cell
+            for i in range(self.num_rnn_layers):
+                initial_hidden_state[i] = input_prepped.clone().detach()
+        else:
+            initial_hidden_state = current_hidden_state
+        
+        logits, current_hidden_state_out = self.rnn.forward(xTokens, 
+                                                            initial_hidden_state,
+                                                            self.outputLayer,
+                                                            self.Embedding,
+                                                            is_train)
 
         return logits, current_hidden_state_out
 
@@ -128,54 +145,51 @@ class RNN(nn.Module):
         # Use for loops to run over "seqLen" and "self.num_rnn_layers" to calculate logits
         # Produce outputs
         
-                                 
+        batch_size = initial_hidden_state.shape[1]
+
         input_tokens = Embedding(xTokens)
         
-        # xTokens.shape[0] = batch_size, 
-        # xTokens.shape[1] = truncated_backprop_length, 
-        # outLayer.out_features = vocabulary size
-        logits = torch.zeros(xTokens.shape[0], seqLen, outputLayer.out_features)
+        logits = torch.zeros(batch_size, seqLen, outputLayer.out_features)
                 
-        # keep track of all states
-        current_state = initial_hidden_state
-        states = torch.zeros(seqLen, current_state.shape[0], current_state.shape[1], current_state.shape[2])
+        # keep track of all states because Autograd doesn't play nice with in-place modification
+        all_states = torch.zeros(seqLen+1, self.num_rnn_layers, batch_size, self.hidden_state_size)
+        all_states[0, :, :, :] = initial_hidden_state
         
         if is_train:
-            current_state = initial_hidden_state
             for i in range(seqLen):
                 cell_input = input_tokens[:, i, :]
                 for j in range(self.num_rnn_layers):
                     current_cell = self.cells[j]
-                    states[i, j, :, :] = current_cell.forward(cell_input, current_state[j, :, :])
+                    current_state = all_states[i, j, :, :].clone().detach()
+                    all_states[i+1, j, :, :] = current_cell.forward(cell_input, current_state)
 
-                    # Update cell input so that the next cell receives the new state.
-                    cell_input = states[i, j, :, :]
+                    # Update cell input with the new state
+                    cell_input = all_states[i+1, j, :, :].clone().detach()
 
                 # Calculate logit with final state for the current word
-                logits[:, i, :] = outputLayer(current_state[-1])
-                current_state = states[i, :, :, :]
+                # Force keeping gradient, otherwise backprop produces bad results.
+                logits[:, i, :] = outputLayer(all_states[i+1, -1, :, :]).clone().detach().requires_grad_(True)
         else:
-            current_state = initial_hidden_state
             cell_input = input_tokens[:, 0, :]
             for i in range(seqLen):
                 for j in range(self.num_rnn_layers):
                     current_cell = self.cells[j]
-                    states[i, j, :, :] = current_cell.forward(cell_input, current_state[j, :, :])
+                    current_state = all_states[i, j, :, :].clone().detach()
+                    all_states[i+1, j, :, :] = current_cell.forward(cell_input, current_state)
 
                     # Update cell input so that the next cell receives the new state.
-                    cell_input = states[i, j, :, :]
+                    cell_input = all_states[i+1, j, :, :].clone().detach()
 
                 # Calculate logit with final state for the current word
-                logits[:, i, :] = outputLayer(current_state[-1])
+                logits[:, i, :] = outputLayer(all_states[i+1, -1, :, :])
                 
                 # set cell_input to embedded version of the best candidate word
                 current_output = F.softmax(logits[:, i, :], dim=1)
                 best_word = torch.argmax(current_output, dim=1)
                 cell_input = Embedding(best_word)
-                current_state = states[i, :, :, :]
 
 
-        return logits, current_state
+        return logits, all_states[-1, :, :, :]
 
 ########################################################################################################################
 class GRUCell(nn.Module):
