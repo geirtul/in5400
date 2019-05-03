@@ -189,7 +189,7 @@ class RNN(nn.Module):
                     cell_input = all_states[i+1, j, :, :].clone().detach()
 
                 # Calculate logit with final state for the current word
-                logits[:, i, :] = outputLayer(all_states[i+1, -1, :, :])
+                logits[:, i, :] = outputLayer(all_states[i+1, -1, :, :]).clone().detach().requires_grad_(True)
                 
                 # set cell_input to embedded version of the best candidate word
                 current_output = F.softmax(logits[:, i, :], dim=1)
@@ -230,19 +230,19 @@ class GRUCell(nn.Module):
         self.hidden_state_size = hidden_state_size
 
         # TODO:
-        w_u = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        w_u = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
         self.weight_u = nn.Parameter(nn.init.normal_(w_u, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b_u = torch.empty(1, self.hidden_state_size)
+        b_u = torch.empty(1, self.hidden_state_size, requires_grad=True)
         self.bias_u = nn.Parameter(nn.init.constant_(b_u, 0.0))
 
-        w_r = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        w_r = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
         self.weight_r = nn.Parameter(nn.init.normal_(w_r, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b_r = torch.empty(1, self.hidden_state_size)
+        b_r = torch.empty(1, self.hidden_state_size, requires_grad=True)
         self.bias_r = nn.Parameter(nn.init.constant_(b_u, 0.0))
 
-        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
         self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
-        b = torch.empty(1, self.hidden_state_size)
+        b = torch.empty(1, self.hidden_state_size, requires_grad=True)
         self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
         
         return
@@ -290,10 +290,10 @@ class RNNCell(nn.Module):
         self.hidden_state_size = hidden_state_size
 
         # TODO:
-        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size)
+        w = torch.empty(self.hidden_state_size+input_size, self.hidden_state_size, requires_grad=True)
         self.weight = nn.Parameter(nn.init.normal_(w, 0.0, 1/np.sqrt(input_size+self.hidden_state_size)))
         
-        b = torch.empty(1, self.hidden_state_size)
+        b = torch.empty(1, self.hidden_state_size, requires_grad=True)
         self.bias = nn.Parameter(nn.init.constant_(b, 0.0))
 
 
