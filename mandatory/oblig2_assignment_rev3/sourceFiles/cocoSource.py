@@ -60,7 +60,7 @@ class imageCaptionModel(nn.Module):
         batch_size = vgg_fc7_features.shape[0]
         
         # Feed vgg_fc7_features through inputLayer, to be passed to all rnn cells.
-        input_prepped = self.inputLayer(vgg_fc7_features)
+        input_prepped = torch.tanh(self.inputLayer(vgg_fc7_features))
         
         # Define initial_hidden_state of current is None
         if current_hidden_state is None:
